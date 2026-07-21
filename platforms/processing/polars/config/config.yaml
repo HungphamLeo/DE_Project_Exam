@@ -1,0 +1,8 @@
+polarss:
+  thread_pool_size: 8
+  enable_streaming: true
+  storage_options:
+    endpoint_url: "http://localhost:9000"
+    aws_access_key_id: "minioadmin"
+    aws_secret_access_key: "minioadmin_secure_123@#"
+    region_name: "us-east-1"
