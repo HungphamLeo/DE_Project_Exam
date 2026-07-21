@@ -107,6 +107,32 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+
+  # ============================
+  # MinIO (S3-compatible storage)
+  # ============================
+  minio:
+    image: minio/minio:latest
+    container_name: minio-lakehouse
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minio@admin
+      MINIO_ROOT_PASSWORD: de_assessment@123#
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - lakehouse_network
+      - etl-net
+
   # ── Zookeeper (required by Kafka) ─────────────────────────
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.1

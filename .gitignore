@@ -1,0 +1,25 @@
+# Ignore data files
+*.csv
+
+# Ignore YAML files
+*.yaml
+*.yml
+
+# Ignore environment files
+*.env
+.env
+DE_assessment_env
+
+# Ignore log files and log directories
+*.log
+log/
+logs/
+
+# Ignore all files under any folder matching these names
+**/log/
+**/logs/
+**/*.csv
+**/*.yaml
+**/*.yml
+**/*.env
+**/*.log
