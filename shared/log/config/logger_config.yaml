@@ -172,6 +172,12 @@ handlers:
     level: ERROR
 
 loggers:
+  # ── ingestion: bronze layer (CSV → MinIO S3)
+  logger.ingestion_log.bronze:
+    level: DEBUG
+    handlers: [console, file_debug, file_info]
+    propagate: false
+
   etl_platforms_ingestion_extract:
     level: DEBUG
     handlers: [console, file_debug]
