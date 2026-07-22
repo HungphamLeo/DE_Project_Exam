@@ -440,4 +440,4 @@ with DAG(
         """,
     )
 
-    task_ingest_bronze >> task_load_staging
+    # task_ingest_bronze >> task_load_staging
