@@ -17,6 +17,7 @@ logs/
 
 # Ignore all files under any folder matching these names
 **/log/
+**/logger_storage/
 **/logs/
 **/*.csv
 **/*.yaml
