@@ -25,28 +25,28 @@ handlers:
     level: INFO
   data_quality_debug:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/data_quality/data_quality_debug.log
+    filename: logs/data_quality/data_quality_debug.log
     maxBytes: 10485760
     backupCount: 3
     formatter: default
     level: DEBUG
   data_quality_info:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/data_quality/data_quality_info.log
+    filename: logs/data_quality/data_quality_info.log
     maxBytes: 10485760
     backupCount: 3
     formatter: default
     level: INFO
   data_quality_warning:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/data_quality/data_quality_warning.log
+    filename: logs/data_quality/data_quality_warning.log
     maxBytes: 10485760
     backupCount: 3
     formatter: default
     level: WARNING
   data_quality_error:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/data_quality/data_quality_error.log
+    filename: logs/data_quality/data_quality_error.log
     maxBytes: 10485760
     backupCount: 3
     formatter: default
@@ -55,28 +55,28 @@ handlers:
   # ── postgre storage logger ────────────────────────────────────────────────
   postgre_debug:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/storage/postgre/postgre_debug.log
+    filename: logs/storage/postgre/postgre_debug.log
     maxBytes: 52428800  # 50MB
     backupCount: 7
     formatter: default
     level: DEBUG
   postgre_info:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/storage/postgre/postgre_info.log
+    filename: logs/storage/postgre/postgre_info.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default
     level: INFO
   postgre_warning:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/storage/postgre/postgre_warning.log
+    filename: logs/storage/postgre/postgre_warning.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default
     level: WARNING
   postgre_error:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/storage/postgre/postgre_error.log
+    filename: logs/storage/postgre/postgre_error.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default
@@ -85,28 +85,28 @@ handlers:
   # ── kafka processing logger ────────────────────────────────────────────
   kafka_debug:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/kafka/kafka_debug.log
+    filename: logs/processing/kafka/kafka_debug.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default
     level: DEBUG
   kafka_info:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/kafka/kafka_info.log
+    filename: logs/processing/kafka/kafka_info.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default
     level: INFO
   kafka_warning:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/kafka/kafka_warning.log
+    filename: logs/processing/kafka/kafka_warning.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default
     level: WARNING
   kafka_error:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/kafka/kafka_error.log
+    filename: logs/processing/kafka/kafka_error.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default
@@ -115,28 +115,28 @@ handlers:
 
   polars_debug:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/polars/postgre_debug.log
+    filename: logs/processing/polars/postgre_debug.log
     maxBytes: 52428800  # 50MB
     backupCount: 7
     formatter: default
     level: DEBUG
   polars_info:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/polars/postgre_info.log
+    filename: logs/processing/polars/postgre_info.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default
     level: INFO
   polars_warning:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/polars/polars_warning.log
+    filename: logs/processing/polars/polars_warning.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default
     level: WARNING
   polars_error:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/polars/polars_error.log
+    filename: logs/processing/polars/polars_error.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default
@@ -144,28 +144,28 @@ handlers:
 
   sqlmesh_debug:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/sqlmesh/sqlmesh_debug.log
+    filename: logs/processing/sqlmesh/sqlmesh_debug.log
     maxBytes: 52428800  # 50MB
     backupCount: 7
     formatter: default
     level: DEBUG
   sqlmesh_info:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/sqlmesh/sqlmesh_info.log
+    filename: logs/processing/sqlmesh/sqlmesh_info.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default
     level: INFO
   sqlmesh_warning:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/sqlmesh/sqlmesh_warning.log
+    filename: logs/processing/sqlmesh/sqlmesh_warning.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default
     level: WARNING
   sqlmesh_error:
     class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/sqlmesh/sqlmesh_error.log
+    filename: logs/processing/sqlmesh/sqlmesh_error.log
     maxBytes: 52428800
     backupCount: 7
     formatter: default

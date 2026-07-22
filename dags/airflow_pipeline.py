@@ -34,10 +34,8 @@ import psycopg2
 import psycopg2.extras
 from psycopg2.pool import ThreadedConnectionPool
 import time
-
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-
 from platforms.processing.polars.base_processing import BasepolarssProcessor
 from platforms.processing.polars.polars_engine import PolarsEngine, PolarsConfig
 from platforms.storage.postgre.postgres_client import PostgresClient
