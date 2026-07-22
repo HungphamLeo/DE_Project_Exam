@@ -141,34 +141,34 @@ handlers:
     formatter: default
     level: ERROR
 
-  sqlmesh_debug:
-    class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/sqlmesh/sqlmesh_debug.log
-    maxBytes: 52428800  # 50MB
-    backupCount: 7
-    formatter: default
-    level: DEBUG
-  sqlmesh_info:
-    class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/sqlmesh/sqlmesh_info.log
-    maxBytes: 52428800
-    backupCount: 7
-    formatter: default
-    level: INFO
-  sqlmesh_warning:
-    class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/sqlmesh/sqlmesh_warning.log
-    maxBytes: 52428800
-    backupCount: 7
-    formatter: default
-    level: WARNING
-  sqlmesh_error:
-    class: logging.handlers.RotatingFileHandler
-    filename: logger_storage/processing/sqlmesh/sqlmesh_error.log
-    maxBytes: 52428800
-    backupCount: 7
-    formatter: default
-    level: ERROR
+  # sqlmesh_debug:
+  #   class: logging.handlers.RotatingFileHandler
+  #   filename: logger_storage/processing/sqlmesh/sqlmesh_debug.log
+  #   maxBytes: 52428800  # 50MB
+  #   backupCount: 7
+  #   formatter: default
+  #   level: DEBUG
+  # sqlmesh_info:
+  #   class: logging.handlers.RotatingFileHandler
+  #   filename: logger_storage/processing/sqlmesh/sqlmesh_info.log
+  #   maxBytes: 52428800
+  #   backupCount: 7
+  #   formatter: default
+  #   level: INFO
+  # sqlmesh_warning:
+  #   class: logging.handlers.RotatingFileHandler
+  #   filename: logger_storage/processing/sqlmesh/sqlmesh_warning.log
+  #   maxBytes: 52428800
+  #   backupCount: 7
+  #   formatter: default
+  #   level: WARNING
+  # sqlmesh_error:
+  #   class: logging.handlers.RotatingFileHandler
+  #   filename: logger_storage/processing/sqlmesh/sqlmesh_error.log
+  #   maxBytes: 52428800
+  #   backupCount: 7
+  #   formatter: default
+  #   level: ERROR
 
 loggers:
   # ── ingestion: bronze layer (CSV → MinIO S3)
@@ -181,9 +181,9 @@ loggers:
     level: DEBUG
     handlers: [console, file_debug]
     propagate: false
-  logger.governance.data_quality:
+  logger.data_quality:
     level: INFO
-    handlers: [console, governance_info, governance_warning, governance_error]
+    handlers: [console, data_quality_info, data_quality_warning, data_quality_error]
     propagate: false
   etl_platforms_processing_dbt_models:
     level: INFO

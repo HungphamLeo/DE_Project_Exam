@@ -49,7 +49,7 @@ class PostgresClient:
     _MIN_CONN = 1
     _MAX_CONN = 5
     _RETRY_ATTEMPTS = 3
-    _RETRY_DELAY_S  = 2
+    _RETRY_DELAY_S  = 10
 
     def __init__(self, config: PostgresConfig) -> None:
         self._config = config

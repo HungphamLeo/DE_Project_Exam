@@ -120,7 +120,7 @@ class PolarsEngine:
                 root_path=s3_path,
                 partition_cols=partition_by,
                 filesystem=fs,
-                use_legacy_dataset=False,
+
             )
         else:
             # Ensure the path is a file, not a bare directory prefix.

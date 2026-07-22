@@ -1,0 +1,33 @@
+bước 7
+python -c "
+from shared.utils.de_assessment_utils import EnvConfig
+from platforms.ingestion.raw_ingestor import build_bronze_ingestor
+ingestor = build_bronze_ingestor(env=EnvConfig())
+path = ingestor.process(batch_id='2024-10-01', target_prefix='raw/events')
+print('Written to:', path)
+"
+
+bước 8
+python -c "
+from shared.utils.de_assessment_utils import EnvConfig
+from platforms.storage.postgre.postgres_client import PostgresClient
+from pathlib import Path
+pg = PostgresClient.from_config(EnvConfig().postgres)
+pg.execute_sql_file(Path('platforms/schema_manage/de_assessment_schema.sql'))
+rows = pg.run(\"SELECT table_name FROM information_schema.tables WHERE table_schema='staging' ORDER BY 1\")
+print('Tables:', [r[0] for r in rows])
+pg.close()
+"
+
+
+bước 9
+python -c "
+from shared.utils.de_assessment_utils import EnvConfig
+from dags.airflow_pipeline import build_staging_processor
+processor = build_staging_processor(env=EnvConfig())
+stats = processor.process(
+    bronze_path='s3://bronze/raw/events/ingest_date=2024-10-01/',
+    batch_id='2024-10-01'
+)
+print('Stats:', stats)
+"

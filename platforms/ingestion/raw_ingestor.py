@@ -23,7 +23,7 @@ import polars as pl
 
 from platforms.processing.polars.base_processing import BasepolarssProcessor
 from platforms.processing.polars.polars_engine import PolarsEngine, PolarsConfig
-from shared.config.env_config import EnvConfig
+from shared.utils.de_assessment_utils import EnvConfig
 from shared.log.logger import LoggerManager
 
 

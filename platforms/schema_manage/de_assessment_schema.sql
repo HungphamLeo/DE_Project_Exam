@@ -169,7 +169,7 @@ CREATE INDEX IF NOT EXISTS idx_fact_trips_entity
     ON staging.fact_trips (entity_key);
 
 CREATE INDEX IF NOT EXISTS idx_fact_trips_date
-    ON staging.fact_trips ((event_timestamp::date));
+    ON staging.fact_trips (event_timestamp);
 
 CREATE INDEX IF NOT EXISTS idx_fact_trips_zone
     ON staging.fact_trips (zone_key);
