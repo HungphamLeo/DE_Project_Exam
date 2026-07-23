@@ -7,8 +7,9 @@ Cung cấp:
   - execute()          : chạy DML / DDL với auto-commit hoặc trong transaction
   - execute_many()     : executemany cho batch insert
   - execute_sql_file() : đọc và chạy file .sql (schema.sql, load.sql)
+  - insert()           : batch insert đơn giản (dùng cho SCD2 đã pre-filter)
   - upsert_lookup()    : INSERT ... ON CONFLICT DO UPDATE cho SCD1 dims
-  - insert_ignore()    : INSERT ... ON CONFLICT DO NOTHING cho SCD2 + fact
+  - insert_ignore()    : INSERT ... ON CONFLICT DO NOTHING cho fact tables
 
 Logger: logger.storage_log.postgre (đã cấu hình trong logger_config.yaml)
 """
@@ -167,6 +168,35 @@ class PostgresClient:
         """Shorthand: lấy connection, chạy sql, trả về kết quả."""
         with self.connection() as conn:
             return self.execute(conn, sql, params)
+
+    def insert(
+        self,
+        conn: psycopg2.extensions.connection,
+        table: str,
+        rows: List[Dict[str, Any]],
+    ) -> int:
+        """
+        Thực hiện batch insert đơn giản.
+        Dùng cho SCD2 dims khi chỉ insert các bản ghi mới đã được lọc ở Python.
+
+        Returns:
+            Số rows đã xử lý.
+        """
+        if not rows:
+            return 0
+
+        cols = list(rows[0].keys())
+        col_list = ", ".join(cols)
+        val_list = ", ".join(f"%({c})s" for c in cols)
+
+        sql = (
+            f"INSERT INTO {table} ({col_list}) "
+            f"VALUES ({val_list})"
+        )
+        _LOG.debug(f"[insert] {table} — {len(rows)} rows")
+        with conn.cursor() as cur:
+            psycopg2.extras.execute_batch(cur, sql, rows, page_size=500)
+            return len(rows)
 
     def upsert_lookup(
         self,

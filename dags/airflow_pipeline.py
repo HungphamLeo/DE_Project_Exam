@@ -44,9 +44,9 @@ from shared.utils.de_assessment_utils import EnvConfig
 from shared.log.logger import LoggerManager
 
 
-# ── Schema SQL — nằm trong platforms/schema_manage/ (SRP) ─────────────────
+# dags/airflow_pipeline.py:48-53 — thay parents[1] bằng Path của project mount
 _SCHEMA_SQL = (
-    Path(__file__).resolve().parents[1]  # project root
+    Path("/opt/airflow/project")   # trỏ thẳng tới mount point
     / "platforms"
     / "schema_manage"
     / "de_assessment_schema.sql"
@@ -205,7 +205,9 @@ class StagingProcessor(BasepolarssProcessor):
             for z in df["zone_id"].drop_nulls().unique().to_list()
             if int(z) not in existing
         ]
-        return self._pg.insert_ignore(conn, "staging.dim_zone", rows, "zone_id")
+        # For SCD2, the business key is not unique. The Python logic already filters for new keys.
+        # Use a plain insert, not "insert_ignore" which requires a unique constraint.
+        return self._pg.insert(conn, "staging.dim_zone", rows)
 
     def _load_dim_destination(self, conn, df: pl.DataFrame) -> int:
         now = datetime.now(timezone.utc)
@@ -224,7 +226,9 @@ class StagingProcessor(BasepolarssProcessor):
             for d in df["destination_id"].drop_nulls().unique().to_list()
             if int(d) not in existing
         ]
-        return self._pg.insert_ignore(conn, "staging.dim_destination", rows, "destination_id")
+        # For SCD2, the business key is not unique. The Python logic already filters for new keys.
+        # Use a plain insert, not "insert_ignore" which requires a unique constraint.
+        return self._pg.insert(conn, "staging.dim_destination", rows)
 
     def _load_dim_entity(self, conn, df: pl.DataFrame) -> int:
         now = datetime.now(timezone.utc)
@@ -247,7 +251,9 @@ class StagingProcessor(BasepolarssProcessor):
             for eid in home_zone
             if eid not in existing
         ]
-        return self._pg.insert_ignore(conn, "staging.dim_entity", rows, "entity_id")
+        # For SCD2, the business key is not unique. The Python logic already filters for new keys.
+        # Use a plain insert, not "insert_ignore" which requires a unique constraint.
+        return self._pg.insert(conn, "staging.dim_entity", rows)
 
     # ── Fact loader ────────────────────────────────────────────────────────
 
@@ -330,9 +336,6 @@ def build_staging_processor(env: Optional[EnvConfig] = None) -> StagingProcessor
             enable_streaming=True,
             storage_options={
                 **minio.storage_options,
-                "_bucket_bronze": minio.bucket_bronze,
-                "_bucket_silver": minio.bucket_silver,
-                "_bucket_gold":   minio.bucket_gold,
             },
         ),
         logger=logger,
@@ -438,4 +441,4 @@ with DAG(
         """,
     )
 
-    # task_ingest_bronze >> task_load_staging
+    task_ingest_bronze >> task_load_staging

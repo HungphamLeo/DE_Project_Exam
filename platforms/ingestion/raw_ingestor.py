@@ -58,8 +58,9 @@ class BronzeIngestor(BasepolarssProcessor):
 
     SOURCE_FILE_NAME = "de_assessment_data.csv"
 
-    def __init__(self, engine: PolarsEngine, source_path: Optional[str] = None) -> None:
+    def __init__(self, engine: PolarsEngine, bronze_bucket: str, source_path: Optional[str] = None) -> None:
         super().__init__(engine)
+        self._bronze_bucket = bronze_bucket
         # Đường dẫn CSV: ưu tiên tham số → Airflow-mounted path → local project path
         if source_path:
             self._source_path = Path(source_path)
@@ -68,8 +69,6 @@ class BronzeIngestor(BasepolarssProcessor):
             airflow_path = Path("/opt/airflow/data") / self.SOURCE_FILE_NAME
             local_path = Path(__file__).resolve().parent / "source_data" / self.SOURCE_FILE_NAME
             self._source_path = airflow_path if airflow_path.exists() else local_path
-
-    # ── public entry point ─────────────────────────────────────────────────
 
     def process(
         self,
@@ -153,11 +152,8 @@ class BronzeIngestor(BasepolarssProcessor):
         Xây dựng đường dẫn S3 từ storage_options của engine.
         Engine đã được khởi tạo với storage_options chứa bucket bronze.
         """
-        # Lấy bucket từ storage_options nếu có key "_bucket_bronze"
-        # Nếu không có, dùng mặc định "bronze"
-        bucket = self.engine.config.storage_options.get("_bucket_bronze", "bronze")
         # Kết quả: s3://bronze/raw/events/
-        return f"s3://{bucket}/{prefix.strip('/')}/"
+        return f"s3://{self._bronze_bucket}/{prefix.strip('/')}/"
 
 
 # ── Factory function — khởi tạo đầy đủ từ EnvConfig ──────────────────────
@@ -191,14 +187,13 @@ def build_bronze_ingestor(
     # 3. Khởi tạo PolarsEngine với S3 storage_options từ MinIO config
     polars_cfg = PolarsConfig(
         enable_streaming=True,
-        storage_options={
-            **minio.storage_options,           # endpoint_url, access_key, secret_key
-            "_bucket_bronze": minio.bucket_bronze,
-            "_bucket_silver": minio.bucket_silver,
-            "_bucket_gold":   minio.bucket_gold,
-        },
+        storage_options=minio.storage_options,
     )
     engine = PolarsEngine(config=polars_cfg, logger=logger)
 
     # 4. Tạo và trả về ingestor
-    return BronzeIngestor(engine=engine, source_path=source_path)
+    return BronzeIngestor(
+        engine=engine,
+        bronze_bucket=minio.bucket_bronze,
+        source_path=source_path,
+    )
