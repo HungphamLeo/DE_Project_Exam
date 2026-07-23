@@ -1,18 +1,18 @@
 from abc import ABC, abstractmethod
 from typing import Union, Dict, Any
-from platforms.processing.polars.polars_engine import polarssEngine
+from platforms.processing.polars.polars_engine import PolarsEngine
 import polars as pl
 from datetime import datetime, timezone, date
 
-# Giả định polarssEngine được import từ module ở trên
-# from platforms.processing.polarss.polarss_engine import polarssEngine
+# Giả định PolarsEngine được import từ module ở trên
+# from platforms.processing.polarss.polarss_engine import PolarsEngine
 
 class BasepolarssProcessor(ABC):
     """
     Lớp cơ sở cho các Job xử lý dữ liệu bằng polarss.
     Bất cứ tác vụ Ingest / Transform nào cũng nên kế thừa class này.
     """
-    def __init__(self, engine: 'polarssEngine'):
+    def __init__(self, engine: 'PolarsEngine'):
         self.engine = engine
         self.logger = engine.logger
 

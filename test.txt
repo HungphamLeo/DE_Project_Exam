@@ -1,0 +1,12 @@
+command xem logs:
+# Liệt kê tất cả file log theo ngày, partition theo dag_id/task_id/run_date
+docker exec de_airflow_scheduler find /opt/airflow/logs \
+  -type f -name "*.log" | sort
+
+# Xem log theo từng ngày cụ thể (ví dụ 2025-07-21)
+docker exec de_airflow_scheduler find /opt/airflow/logs \
+  -type f -name "*.log" -path "*2025-07-21*" | sort
+
+# Xem cây thư mục (nếu có tree)
+docker exec de_airflow_scheduler find /opt/airflow/logs \
+  -type d | sort
