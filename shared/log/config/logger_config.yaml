@@ -1,0 +1,207 @@
+version: 1
+disable_existing_loggers: false
+formatters:
+  default:
+    format: '{"time":"%(asctime)s", "level":"%(levelname)s", "message":"%(message)s", "caller":"%(pathname)s:%(lineno)d"}'
+    datefmt: "%Y-%m-%dT%H:%M:%S"
+handlers:
+  console:
+    class: logging.StreamHandler
+    formatter: default
+    level: INFO
+  file_debug:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/ingestion/debug.log
+    maxBytes: 10485760  # 10MB
+    backupCount: 3
+    formatter: default
+    level: DEBUG
+  file_info:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/ingestion/info.log
+    maxBytes: 10485760
+    backupCount: 3
+    formatter: default
+    level: INFO
+  data_quality_debug:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/data_quality/data_quality_debug.log
+    maxBytes: 10485760
+    backupCount: 3
+    formatter: default
+    level: DEBUG
+  data_quality_info:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/data_quality/data_quality_info.log
+    maxBytes: 10485760
+    backupCount: 3
+    formatter: default
+    level: INFO
+  data_quality_warning:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/data_quality/data_quality_warning.log
+    maxBytes: 10485760
+    backupCount: 3
+    formatter: default
+    level: WARNING
+  data_quality_error:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/data_quality/data_quality_error.log
+    maxBytes: 10485760
+    backupCount: 3
+    formatter: default
+    level: ERROR
+
+  # ── postgre storage logger ────────────────────────────────────────────────
+  postgre_debug:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/storage/postgre/postgre_debug.log
+    maxBytes: 52428800  # 50MB
+    backupCount: 7
+    formatter: default
+    level: DEBUG
+  postgre_info:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/storage/postgre/postgre_info.log
+    maxBytes: 52428800
+    backupCount: 7
+    formatter: default
+    level: INFO
+  postgre_warning:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/storage/postgre/postgre_warning.log
+    maxBytes: 52428800
+    backupCount: 7
+    formatter: default
+    level: WARNING
+  postgre_error:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/storage/postgre/postgre_error.log
+    maxBytes: 52428800
+    backupCount: 7
+    formatter: default
+    level: ERROR
+
+  # ── kafka processing logger ────────────────────────────────────────────
+  kafka_debug:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/processing/kafka/kafka_debug.log
+    maxBytes: 52428800
+    backupCount: 7
+    formatter: default
+    level: DEBUG
+  kafka_info:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/processing/kafka/kafka_info.log
+    maxBytes: 52428800
+    backupCount: 7
+    formatter: default
+    level: INFO
+  kafka_warning:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/processing/kafka/kafka_warning.log
+    maxBytes: 52428800
+    backupCount: 7
+    formatter: default
+    level: WARNING
+  kafka_error:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/processing/kafka/kafka_error.log
+    maxBytes: 52428800
+    backupCount: 7
+    formatter: default
+    level: ERROR
+
+  polars_debug:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/processing/polars/polars_debug.log
+    maxBytes: 52428800  # 50MB
+    backupCount: 7
+    formatter: default
+    level: DEBUG
+  polars_info:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/processing/polars/polars_info.log
+    maxBytes: 52428800
+    backupCount: 7
+    formatter: default
+    level: INFO
+  polars_warning:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/processing/polars/polars_warning.log
+    maxBytes: 52428800
+    backupCount: 7
+    formatter: default
+    level: WARNING
+  polars_error:
+    class: logging.handlers.RotatingFileHandler
+    filename: logger_storage/processing/polars/polars_error.log
+    maxBytes: 52428800
+    backupCount: 7
+    formatter: default
+    level: ERROR
+
+  # sqlmesh_debug:
+  #   class: logging.handlers.RotatingFileHandler
+  #   filename: logger_storage/processing/sqlmesh/sqlmesh_debug.log
+  #   maxBytes: 52428800  # 50MB
+  #   backupCount: 7
+  #   formatter: default
+  #   level: DEBUG
+  # sqlmesh_info:
+  #   class: logging.handlers.RotatingFileHandler
+  #   filename: logger_storage/processing/sqlmesh/sqlmesh_info.log
+  #   maxBytes: 52428800
+  #   backupCount: 7
+  #   formatter: default
+  #   level: INFO
+  # sqlmesh_warning:
+  #   class: logging.handlers.RotatingFileHandler
+  #   filename: logger_storage/processing/sqlmesh/sqlmesh_warning.log
+  #   maxBytes: 52428800
+  #   backupCount: 7
+  #   formatter: default
+  #   level: WARNING
+  # sqlmesh_error:
+  #   class: logging.handlers.RotatingFileHandler
+  #   filename: logger_storage/processing/sqlmesh/sqlmesh_error.log
+  #   maxBytes: 52428800
+  #   backupCount: 7
+  #   formatter: default
+  #   level: ERROR
+
+loggers:
+  # ── ingestion: bronze layer (CSV → MinIO S3)
+  logger.ingestion_log.bronze:
+    level: DEBUG
+    handlers: [console, file_debug, file_info]
+    propagate: false
+
+  etl_platforms_ingestion_extract:
+    level: DEBUG
+    handlers: [console, file_debug]
+    propagate: false
+  logger.data_quality:
+    level: INFO
+    handlers: [console, data_quality_info, data_quality_warning, data_quality_error]
+    propagate: false
+  etl_platforms_processing_dbt_models:
+    level: INFO
+    handlers: [console, file_info]
+    propagate: false
+
+  # ── postgre: log SQL queries (DEBUG) + errors (WARNING+) to dedicated files
+  logger.storage_log.postgre:
+    level: DEBUG
+    handlers: [console, postgre_debug, postgre_info, postgre_warning, postgre_error]
+    propagate: false
+
+  # ── kafka: log plan/run events + errors to dedicated files
+  logger.processing_log.kafka:
+    level: DEBUG
+    handlers: [console, kafka_debug, kafka_info, kafka_warning, kafka_error]
+    propagate: false
+
+  root:
+    level: INFO
+    handlers: [console]
