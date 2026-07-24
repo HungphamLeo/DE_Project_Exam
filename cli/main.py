@@ -150,7 +150,7 @@ def run_producer(args):
         )
         producer.run()
     except Exception as e:
-        logger.critical(f"Producer gặp lỗi nghiêm trọng: {e}", exc_info=True)
+        logger.error(f"Producer gặp lỗi nghiêm trọng: {e}", exc_info=True)
     logger.info("--- Kafka Event Producer đã kết thúc ---")
 
 
@@ -163,7 +163,7 @@ def run_consumer(args):
         consumer = EventConsumer(kafka_config=cfg.kafka, pg_config=cfg.postgres, logger=logger)
         consumer.run()
     except Exception as e:
-        logger.critical(f"Consumer gặp lỗi nghiêm trọng: {e}", exc_info=True)
+        logger.error(f"Consumer gặp lỗi nghiêm trọng: {e}", exc_info=True)
     logger.info("--- Kafka Event Consumer đã dừng ---")
 
 
