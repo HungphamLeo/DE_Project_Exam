@@ -17,11 +17,13 @@ Repository này chứa giải pháp cho bài đánh giá Data Engineer, bao gồ
 
 2.  **Cài đặt thư viện Python**:
     ```bash
+    
     pip install -r requirements.txt
     ```
 
 3.  **Khởi động các services (Postgres, Airflow, Kafka)**:
     ```bash
+    cd infra
     docker compose up -d
     ```
     - Airflow UI: `http://localhost:8080` (user: `airflow`, pass: `airflow`)
@@ -37,13 +39,14 @@ Repository này chứa giải pháp cho bài đánh giá Data Engineer, bao gồ
 1.  **Terminal 1: Chạy Consumer**
     Consumer sẽ kết nối tới Kafka, lắng nghe topic `events` và ghi dữ liệu vào PostgreSQL.
     ```bash
-    python -m cli.main consume
+    python -m cli/main consume
     ```
 
 2.  **Terminal 2: Chạy Producer**
     Producer sẽ đọc file `de_assessment_data.csv` và gửi từng dòng vào Kafka.
     ```bash
-    python -m cli.main produce de_assessment_data.csv --delay 50
+
+    python -m cli/main produce de_assessment_data.csv --delay 50
     ```
     - Bạn có thể thay đổi giá trị `--delay` (miligiây) để điều chỉnh tốc độ gửi tin.
     - Bạn sẽ thấy log xử lý tin nhắn ở cửa sổ của consumer. Dữ liệu sẽ được ghi vào bảng `staging.kafka_events`.
