@@ -84,7 +84,7 @@ class EventConsumer(GenericConsumer):
         """Chạy script SQL để tạo bảng nếu chưa tồn tại."""
         try:
             # Giả định project root là thư mục cha của 'streaming'
-            schema_file = Path(__file__).resolve().parents[1] / "sql" / "streaming_schema.sql"
+            schema_file = Path(__file__).resolve().parents[1] / "platforms" / "schema_manage"/"schema_streaming_kafka.sql"
             if schema_file.exists():
                 self.logger.info(f"Áp dụng schema từ {schema_file}...")
                 self.pg_client.execute_sql_file(schema_file)
