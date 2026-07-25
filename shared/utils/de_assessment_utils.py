@@ -216,5 +216,9 @@ class EnvConfig:
             )
         return self._zookeeper
 
+    @property
+    def source_path(self):
+        """Đường dẫn tới file CSV nguồn (source data)."""
+        return os.getenv("SOURCE_PATH", "platforms/ingestion/source_data/de_assessment_data.csv")
     def __repr__(self) -> str:
         return f"EnvConfig(env_path='{self._env_path}')"
