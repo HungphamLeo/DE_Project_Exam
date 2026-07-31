@@ -189,14 +189,14 @@ class PostgresClient:
         col_list = ", ".join(cols)
         val_list = ", ".join(f"%({c})s" for c in cols)
 
-        sql = (
-            f"INSERT INTO {table} ({col_list}) "
-            f"VALUES ({val_list})"
-        )
+        sql = f"INSERT INTO {table} ({col_list}) VALUES %s"
         _LOG.debug(f"[insert] {table} — {len(rows)} rows")
+
         with conn.cursor() as cur:
-            psycopg2.extras.execute_batch(cur, sql, rows, page_size=500)
-            return len(rows)
+            # Chuyển sang execute_values để có rowcount chính xác
+            values = [tuple(r[c] for c in cols) for r in rows]
+            psycopg2.extras.execute_values(cur, sql, values, page_size=500)
+            return cur.rowcount
 
     def upsert_lookup(
         self,
@@ -227,15 +227,13 @@ class PostgresClient:
         conflict   = ", ".join(conflict_cols)
         update_set = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_cols)
 
-        sql = (
-            f"INSERT INTO {table} ({col_list}) "
-            f"VALUES ({val_list}) "
-            f"ON CONFLICT ({conflict}) DO UPDATE SET {update_set}"
-        )
+        sql = f"INSERT INTO {table} ({col_list}) VALUES %s ON CONFLICT ({conflict}) DO UPDATE SET {update_set}"
         _LOG.debug(f"[upsert_lookup] {table} — {len(rows)} rows")
+
         with conn.cursor() as cur:
-            psycopg2.extras.execute_batch(cur, sql, rows, page_size=500)
-            return len(rows)
+            values = [tuple(r[c] for c in cols) for r in rows]
+            psycopg2.extras.execute_values(cur, sql, values, page_size=500)
+            return cur.rowcount
 
     def insert_ignore(
         self,
@@ -246,27 +244,50 @@ class PostgresClient:
     ) -> int:
         """
         INSERT ... ON CONFLICT (conflict_col) DO NOTHING — idempotent insert.
-        Dùng cho fact_trips và SCD2 dims (first-time populate).
+        Dùng cho fact_trips và populate dimension tables.
 
         Returns:
-            Số rows xử lý.
+            Số rows thực sự đã được insert.
         """
         if not rows:
             return 0
 
         cols     = list(rows[0].keys())
         col_list = ", ".join(cols)
-        val_list = ", ".join(f"%({c})s" for c in cols)
 
-        sql = (
-            f"INSERT INTO {table} ({col_list}) "
-            f"VALUES ({val_list}) "
-            f"ON CONFLICT ({conflict_col}) DO NOTHING"
-        )
+        sql = f"INSERT INTO {table} ({col_list}) VALUES %s ON CONFLICT ({conflict_col}) DO NOTHING"
         _LOG.debug(f"[insert_ignore] {table} — {len(rows)} rows")
+
         with conn.cursor() as cur:
-            psycopg2.extras.execute_batch(cur, sql, rows, page_size=500)
-            return len(rows)
+            values = [tuple(r[c] for c in cols) for r in rows]
+            psycopg2.extras.execute_values(cur, sql, values, page_size=500)
+            return cur.rowcount
+
+    def update_batch(
+        self,
+        conn: psycopg2.extensions.connection,
+        table: str,
+        updates: Dict[str, Any],
+        where_col: str,
+        where_values: List[Any],
+    ) -> int:
+        """
+        Thực hiện batch update hiệu quả.
+        VD: UPDATE table SET col1=%s, col2=%s WHERE id = ANY(%s)
+        """
+        if not where_values or not updates:
+            return 0
+
+        set_clause = ", ".join([f"{k} = %s" for k in updates.keys()])
+        sql = f"UPDATE {table} SET {set_clause} WHERE {where_col} = ANY(%s)"
+
+        # Sắp xếp các giá trị cho SET clause, giá trị cho ANY là cuối cùng
+        params = list(updates.values()) + [where_values]
+
+        _LOG.debug(f"[update_batch] {table} — {len(where_values)} keys")
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            return cur.rowcount
 
     # ── Factory ────────────────────────────────────────────────────────────
 

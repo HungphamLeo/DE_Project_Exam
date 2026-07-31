@@ -39,7 +39,7 @@ from airflow.operators.python import PythonOperator
 from platforms.processing.polars.base_processing import BasepolarssProcessor
 from platforms.processing.polars.polars_engine import PolarsEngine, PolarsConfig
 from platforms.storage.postgre.postgres_client import PostgresClient
-from platforms.ingestion.raw_ingestor import build_bronze_ingestor
+from platforms.ingestion.raw_ingestor import build_bronze_ingestor, BronzeIngestor
 from shared.utils.de_assessment_utils import EnvConfig
 from shared.log.logger import LoggerManager
 
@@ -52,10 +52,10 @@ _SCHEMA_SQL = (
     / "de_assessment_schema.sql"
 )
 
-# ── Bronze Parquet schema (audit cols từ BronzeIngestor) ───────────────────
-_BRONZE_SCHEMA = {
+# ── Schema CSV gốc (raw, giữ nguyên kiểu TEXT cho event_timestamp) ─────────
+_CSV_SCHEMA = {
     "event_id":         pl.Utf8,
-    "event_timestamp":  pl.Utf8,
+    "event_timestamp":  pl.Utf8,       # giữ TEXT tại raw layer
     "entity_id":        pl.Int32,
     "zone_id":          pl.Int32,
     "destination_id":   pl.Int32,
@@ -68,11 +68,6 @@ _BRONZE_SCHEMA = {
     "sub_value":        pl.Float64,
     "total_value":      pl.Float64,
     "payment_method":   pl.Utf8,
-    "ingest_timestamp": pl.Utf8,
-    "ingest_date":      pl.Utf8,
-    "batch_id":         pl.Utf8,
-    "source_system":    pl.Utf8,
-    "_source_file":     pl.Utf8,
 }
 
 
@@ -196,120 +191,166 @@ class StagingProcessor(BasepolarssProcessor):
 
     def _load_dim_zone(self, conn, df: pl.DataFrame) -> int:
         now = datetime.now(timezone.utc)
-        existing = {r[0] for r in (
-            self._pg.run("SELECT zone_id FROM staging.dim_zone WHERE is_current = TRUE") or []
-        )}
+        self.logger.info("[dim_zone] Inserting new zones if not exist...")
         rows = [
-            {"zone_id": int(z), "zone_name": None, "borough": None,
-             "valid_from": now, "valid_to": None, "is_current": True, "created_at": now}
+            {"zone_id": int(z)}
             for z in df["zone_id"].drop_nulls().unique().to_list()
-            if int(z) not in existing
         ]
-        # For SCD2, the business key is not unique. The Python logic already filters for new keys.
-        # Use a plain insert, not "insert_ignore" which requires a unique constraint.
-        return self._pg.insert(conn, "staging.dim_zone", rows)
+        # Dùng INSERT ... ON CONFLICT DO NOTHING, dựa vào unique index trên (zone_id) WHERE is_current = TRUE
+        # Hiệu quả hơn nhiều so với việc select-then-insert trong Python.
+        n = self._pg.insert_ignore(conn, "staging.dim_zone", rows, "zone_id")
+        self.logger.info(f"[dim_zone] Found {len(rows)} unique zones in batch. Inserted {n} new zones.")
+        return n
 
     def _load_dim_destination(self, conn, df: pl.DataFrame) -> int:
         now = datetime.now(timezone.utc)
-        existing = {r[0] for r in (
-            self._pg.run("SELECT destination_id FROM staging.dim_destination WHERE is_current = TRUE") or []
-        )}
-        zone_map: Dict[int, int] = {
-            r[0]: r[1] for r in (
-                self._pg.run("SELECT zone_id, zone_key FROM staging.dim_zone WHERE is_current = TRUE") or []
-            )
-        }
+        self.logger.info("[dim_destination] Inserting new destinations if not exist...")
+        # FIX: Logic cũ bị sai khi map destination_id với zone_key.
+        # Cách làm đúng là chỉ insert các destination_id mới. zone_key sẽ là NULL
+        # cho đến khi có dữ liệu bổ sung.
         rows = [
-            {"destination_id": int(d), "zone_key": zone_map.get(int(d)),
-             "destination_name": None, "valid_from": now, "valid_to": None,
-             "is_current": True, "created_at": now}
+            {"destination_id": int(d)}
             for d in df["destination_id"].drop_nulls().unique().to_list()
-            if int(d) not in existing
         ]
-        # For SCD2, the business key is not unique. The Python logic already filters for new keys.
-        # Use a plain insert, not "insert_ignore" which requires a unique constraint.
-        return self._pg.insert(conn, "staging.dim_destination", rows)
+        n = self._pg.insert_ignore(conn, "staging.dim_destination", rows, "destination_id")
+        self.logger.info(f"[dim_destination] Found {len(rows)} unique destinations in batch. Inserted {n} new destinations.")
+        return n
 
     def _load_dim_entity(self, conn, df: pl.DataFrame) -> int:
         now = datetime.now(timezone.utc)
-        existing = {r[0] for r in (
-            self._pg.run("SELECT entity_id FROM staging.dim_entity WHERE is_current = TRUE") or []
-        )}
-        home_zone: Dict[int, int] = {
-            row[0]: row[1] for row in (
-                df.group_by(["entity_id", "zone_id"])
-                .agg(pl.len().alias("cnt"))
-                .sort("cnt", descending=True)
-                .group_by("entity_id")
-                .agg(pl.first("zone_id").alias("hz"))
-                .rows()
-            )
-        }
+        self.logger.info("[dim_entity] Processing SCD2 logic...")
+
+        # 1. Tính home_zone mới từ batch dữ liệu hiện tại
+        df_new_home_zones = (
+            df.lazy()
+            .group_by(["entity_id", "zone_id"])
+            .agg(pl.len().alias("cnt"))
+            .sort("cnt", descending=True)
+            .group_by("entity_id")
+            .agg(pl.first("zone_id").alias("new_zone_id"))
+            .collect()
+        )
+
+        # 2. Lấy các bản ghi entity hiện tại từ DB
+        current_entities_data = self._pg.run("SELECT entity_key, entity_id, zone_id FROM staging.dim_entity WHERE is_current = TRUE")
+        if not current_entities_data:
+            df_current_entities = pl.DataFrame(schema={"entity_key": pl.Int64, "entity_id": pl.Int32, "zone_id": pl.Int32})
+        else:
+            df_current_entities = pl.DataFrame(current_entities_data, schema=["entity_key", "entity_id", "zone_id"])
+
+        # 3. Join để tìm ra các thay đổi và các bản ghi mới
+        df_merged = df_new_home_zones.join(df_current_entities, on="entity_id", how="left")
+
+        # 4. Xác định các bản ghi cần vô hiệu hóa (expire)
+        df_to_expire = df_merged.filter(
+            (pl.col("new_zone_id").is_not_null()) &
+            (pl.col("zone_id").is_not_null()) &
+            (pl.col("new_zone_id") != pl.col("zone_id"))
+        )
+        keys_to_expire = df_to_expire["entity_key"].drop_nulls().to_list()
+
+        expired_count = 0
+        if keys_to_expire:
+            self.logger.info(f"[dim_entity] Expiring {len(keys_to_expire)} old records due to changed home_zone.")
+            # FIX: Không gọi psycopg2 trực tiếp. Sử dụng phương thức đã đóng gói trong PostgresClient.
+            expired_count = self._pg.update_batch(
+                conn, "staging.dim_entity",
+                updates={"is_current": False, "valid_to": now},
+                where_col="entity_key", where_values=keys_to_expire)
+
+        # 5. Xác định các bản ghi cần chèn mới (entity mới + phiên bản mới của entity đã thay đổi)
+        df_to_insert = df_merged.filter(
+            (pl.col("zone_id").is_null()) | # Entity mới
+            (pl.col("entity_key").is_in(keys_to_expire)) # Entity có thay đổi
+        ).select(
+            pl.col("entity_id"),
+            pl.col("new_zone_id").alias("zone_id")
+        )
+
         rows = [
-            {"entity_id": eid, "zone_id": home_zone.get(eid),
-             "valid_from": now, "valid_to": None, "is_current": True, "created_at": now}
-            for eid in home_zone
-            if eid not in existing
+            {
+                "entity_id": r["entity_id"],
+                "zone_id": r["zone_id"],
+                "valid_from": now,
+                "valid_to": None,
+                "is_current": True,
+                "created_at": now
+            }
+            for r in df_to_insert.to_dicts() if r["entity_id"] is not None
         ]
-        # For SCD2, the business key is not unique. The Python logic already filters for new keys.
-        # Use a plain insert, not "insert_ignore" which requires a unique constraint.
-        return self._pg.insert(conn, "staging.dim_entity", rows)
+
+        # 6. Chèn các bản ghi mới
+        inserted_count = self._pg.insert(conn, "staging.dim_entity", rows)
+        self.logger.info(f"[dim_entity] Inserted={inserted_count}, Expired={expired_count}")
+        return inserted_count
 
     # ── Fact loader ────────────────────────────────────────────────────────
 
     def _load_fact_trips(self, conn, df: pl.DataFrame, batch_id: str) -> int:
         now = datetime.now(timezone.utc)
+        self.logger.info("[fact_trips] Starting vectorized fact table load.")
 
-        def _map(sql: str) -> Dict:
-            return {r[0]: r[1] for r in (self._pg.run(sql) or [])}
+        # 1. Load các bảng dimension dưới dạng LazyFrames để join hiệu quả
+        def _load_dim_as_lf(query: str) -> pl.LazyFrame:
+            # Polars đọc hiệu quả nhất qua connection string
+            return pl.read_database(query=query, connection=self._pg._config.conn_string).lazy()
 
-        entity_map  = _map("SELECT entity_id, entity_key FROM staging.dim_entity WHERE is_current=TRUE")
-        zone_map    = _map("SELECT zone_id, zone_key FROM staging.dim_zone WHERE is_current=TRUE")
-        dest_map    = _map("SELECT destination_id, destination_key FROM staging.dim_destination WHERE is_current=TRUE")
-        vendor_map  = _map("SELECT vendor_id, vendor_key FROM staging.dim_vendor")
-        rate_map    = _map("SELECT rate_type, rate_key FROM staging.dim_rate")
-        etype_map   = _map("SELECT event_type_name, event_type_key FROM staging.dim_event_type")
-        payment_map = _map("SELECT payment_method_name, payment_method_key FROM staging.dim_payment_method")
+        lf_entity = _load_dim_as_lf("SELECT entity_key, entity_id FROM staging.dim_entity WHERE is_current=TRUE")
+        lf_zone = _load_dim_as_lf("SELECT zone_key, zone_id FROM staging.dim_zone WHERE is_current=TRUE")
+        lf_dest = _load_dim_as_lf("SELECT destination_key, destination_id FROM staging.dim_destination WHERE is_current=TRUE")
+        lf_vendor = _load_dim_as_lf("SELECT vendor_key, vendor_id FROM staging.dim_vendor")
+        lf_rate = _load_dim_as_lf("SELECT rate_key, rate_type FROM staging.dim_rate")
+        lf_etype = _load_dim_as_lf("SELECT event_type_key, event_type_name FROM staging.dim_event_type")
+        lf_payment = _load_dim_as_lf("SELECT payment_method_key, payment_method_name FROM staging.dim_payment_method")
 
-        existing_ids = {r[0] for r in (
-            self._pg.run("SELECT event_id FROM staging.fact_trips WHERE _batch_id = %s",
-                         (batch_id,)) or []
-        )}
+        # 2. Chuẩn bị và join dữ liệu fact bằng Polars
+        lf_facts = (
+            df.lazy()
+            .with_columns(
+                pl.col("event_timestamp").str.to_datetime(strict=False),
+                pl.col("passenger_count").cast(pl.Int32, strict=False)
+            )
+            .join(lf_entity, on="entity_id", how="left")
+            .join(lf_zone, on="zone_id", how="left")
+            .join(lf_dest, on="destination_id", how="left")
+            .join(lf_vendor, on="vendor_id", how="left")
+            .join(lf_rate, on="rate_type", how="left")
+            .join(lf_etype, left_on="event_type", right_on="event_type_name", how="left")
+            .join(lf_payment, left_on="payment_method", right_on="payment_method_name", how="left")
+            .with_columns(
+                pl.lit(now).alias("_inserted_at"),
+                pl.lit(batch_id).alias("_batch_id")
+            )
+            # FIX: Lỗi copy-paste nghiêm trọng. Phải select các cột đã được join vào.
+            .select(
+                "event_id",
+                "event_timestamp",
+                "entity_key",
+                "destination_key",
+                "vendor_key",
+                "rate_key",
+                "event_type_key",
+                "payment_method_key",
+                "zone_key",
+                "destination_id", # Degenerate dimension
+                "duration",
+                "passenger_count",
+                "value", "sub_value", "total_value",
+                "_inserted_at", "_batch_id",
+            )
+        )
 
-        rows: List[Dict[str, Any]] = []
-        skipped = 0
-        for row in df.iter_rows(named=True):
-            eid = row["event_id"]
-            if eid in existing_ids:
-                skipped += 1
-                continue
-            try:
-                ts = datetime.fromisoformat(row["event_timestamp"])
-            except (ValueError, TypeError):
-                self.logger.warning(f"[fact_trips] bad timestamp event_id={eid}, skip.")
-                skipped += 1
-                continue
-            rows.append({
-                "event_id":           eid,
-                "event_timestamp":    ts,
-                "entity_key":         entity_map.get(row["entity_id"]),
-                "destination_key":    dest_map.get(row["destination_id"]),
-                "vendor_key":         vendor_map.get(row["vendor_id"]),
-                "rate_key":           rate_map.get(row["rate_type"]),
-                "event_type_key":     etype_map.get(row["event_type"]),
-                "payment_method_key": payment_map.get(row["payment_method"]),
-                "zone_key":           zone_map.get(row["zone_id"]),
-                "duration":           row["duration"],
-                "passenger_count":    int(row["passenger_count"]) if row["passenger_count"] is not None else None,
-                "value":              row["value"],
-                "sub_value":          row["sub_value"],
-                "total_value":        row["total_value"],
-                "_inserted_at":       now,
-                "_batch_id":          batch_id,
-            })
+        # 3. Collect kết quả và chuyển thành list of dicts để insert
+        df_final_facts = lf_facts.collect()
+        rows = df_final_facts.to_dicts()
+
+        # 4. Insert vào database
+        if not rows:
+            self.logger.info("[fact_trips] Không có dòng mới để insert.")
+            return 0
 
         n = self._pg.insert_ignore(conn, "staging.fact_trips", rows, "event_id")
-        self.logger.info(f"[fact_trips] inserted={n} skipped={skipped}")
+        self.logger.info(f"[fact_trips] Thử insert {len(rows)} dòng. Đã insert {n} dòng mới (idempotent).")
         return n
 
 
@@ -367,8 +408,16 @@ def ingest_bronze(**context) -> str:
     """
     ds: str = context["ds"]
     cfg      = EnvConfig()
-    ingestor = build_bronze_ingestor(env=cfg)
 
+    # Đường dẫn file nguồn nên được quản lý bởi Airflow (Variables, Connections)
+    # thay vì hardcode. Ở đây, ta giả định nó được mount vào một đường dẫn cố định.
+    source_file_path = "/opt/airflow/data/de_assessment_data.csv"
+
+    ingestor = build_bronze_ingestor(
+        env=cfg,
+        source_path=source_file_path,
+        schema=_CSV_SCHEMA  # Truyền schema đã định nghĩa ở pipeline
+    )
     written_path = ingestor.process(batch_id=ds, target_prefix="raw/events")
     context["ti"].xcom_push(key="bronze_path", value=written_path)
     return written_path

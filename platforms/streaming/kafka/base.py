@@ -3,7 +3,7 @@ import logging
 from abc import ABC
 from shared.utils.de_assessment_utils import KafkaConfig
 from abc import abstractmethod
-from confluent_kafka import Consumer, KafkaError, KafkaException, Producer
+from confluent_kafka import Consumer, KafkaError, KafkaException, Producer, Message
 
 class BaseKafkaClient(ABC):
     """Lớp cơ sở cho các client Kafka với cấu hình dùng chung."""
@@ -22,43 +22,52 @@ class GenericConsumer(BaseKafkaClient):
             'bootstrap.servers': self.config.bootstrap_servers,
             'group.id': group_id,
             'auto.offset.reset': 'earliest',
-            'enable.auto.commit': True,
+            'enable.auto.commit': False,  # Tắt auto commit để kiểm soát thủ công
         }
         self._client = Consumer(consumer_conf)
         self.logger.info(f"Kafka Consumer đã khởi tạo cho servers: {self.config.bootstrap_servers} với group ID: {group_id}")
 
     @abstractmethod
-    def process_message(self, msg_key: str, msg_value: bytes):
-        """Phương thức trừu tượng, cần được implement ở lớp con để xử lý tin nhắn."""
+    def process_batch(self, messages: list[Message]):
+        """Phương thức trừu tượng, cần được implement ở lớp con để xử lý một lô tin nhắn."""
         pass
 
     def subscribe(self, topics: list[str]):
         """Đăng ký vào một danh sách các topic và bắt đầu vòng lặp tiêu thụ."""
         if self._client is None:
             raise ConnectionError("Consumer chưa được khởi tạo.")
+
         self._client.subscribe(topics)
         self.logger.info(f"Đã đăng ký vào các topic: {topics}")
+
         try:
             while True:
-                msg = self._client.poll(timeout=1.0)
-                if msg is None:
+                # Tiêu thụ một lô tin nhắn, tối đa 500 tin hoặc đợi 2 giây
+                messages = self._client.consume(num_messages=500, timeout=2.0)
+                if not messages:
                     continue
-                if msg.error():
-                    if msg.error().code() == KafkaError._PARTITION_EOF:
-                        self.logger.info(f"Đã tới cuối partition: {msg.topic()} [{msg.partition()}]")
-                    elif msg.error():
-                        raise KafkaException(msg.error())
-                else:
-                    key = msg.key().decode('utf-8') if msg.key() else "None"
-                    self.process_message(key, msg.value())
+
+                self.logger.info(f"Nhận được {len(messages)} tin nhắn từ Kafka.")
+                valid_messages = []
+                for msg in messages:
+                    if msg.error():
+                        if msg.error().code() == KafkaError._PARTITION_EOF:
+                            self.logger.info(f"Đã tới cuối partition: {msg.topic()} [{msg.partition()}]")
+                        else:
+                            self.logger.error(f"Lỗi Kafka: {msg.error()}")
+                    else:
+                        valid_messages.append(msg)
+
+                if valid_messages:
+                    self.process_batch(valid_messages)
+                    self._client.commit(asynchronous=False) # Commit offset sau khi xử lý batch thành công
+
         except KeyboardInterrupt:
             self.logger.info("Consumer bị ngắt bởi người dùng.")
         finally:
             if self._client:
                 self._client.close()
                 self.logger.info("Kafka Consumer đã đóng.")
-
-
 class GenericProducer(BaseKafkaClient):
     """Một Kafka producer chung sử dụng thư viện confluent-kafka."""
 

@@ -15,9 +15,9 @@ Không transform dữ liệu — Bronze = ghi trung thực từ CSV.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, Dict
 
 import polars as pl
 
@@ -25,50 +25,15 @@ from platforms.processing.polars.base_processing import BasepolarssProcessor
 from platforms.processing.polars.polars_engine import PolarsEngine, PolarsConfig
 from shared.utils.de_assessment_utils import EnvConfig
 from shared.log.logger import LoggerManager
-
-
-# ── Schema CSV gốc (raw, giữ nguyên kiểu TEXT cho event_timestamp) ─────────
-_CSV_SCHEMA = {
-    "event_id":        pl.Utf8,
-    "event_timestamp": pl.Utf8,       # giữ TEXT tại raw layer
-    "entity_id":       pl.Int32,
-    "zone_id":         pl.Int32,
-    "destination_id":  pl.Int32,
-    "vendor_id":       pl.Int16,
-    "event_type":      pl.Utf8,
-    "rate_type":       pl.Int16,
-    "duration":        pl.Int32,
-    "passenger_count": pl.Float32,
-    "value":           pl.Float64,
-    "sub_value":       pl.Float64,
-    "total_value":     pl.Float64,
-    "payment_method":  pl.Utf8,
-}
-
-
 class BronzeIngestor(BasepolarssProcessor):
     """
     Đọc CSV nguồn → thêm audit cols → ghi Parquet lên MinIO bronze bucket.
-
-    Kế thừa BasepolarssProcessor để dùng:
-      - self.engine  (PolarsEngine — write_parquet với S3 support)
-      - self.logger  (đã bind vào handler logger.ingestion_log.bronze)
-      - add_audit_metadata()
     """
-
-    SOURCE_FILE_NAME = "de_assessment_data.csv"
-
-    def __init__(self, engine: PolarsEngine, bronze_bucket: str, source_path: Optional[str] = None) -> None:
+    def __init__(self, engine: PolarsEngine, bronze_bucket: str, source_path: str, schema: Dict[str, pl.DataType]) -> None:
         super().__init__(engine)
         self._bronze_bucket = bronze_bucket
-        # Đường dẫn CSV: ưu tiên tham số → Airflow-mounted path → local project path
-        if source_path:
-            self._source_path = Path(source_path)
-        else:
-            # Airflow mount: /opt/airflow/data/de_assessment_data.csv
-            airflow_path = Path("/opt/airflow/data") / self.SOURCE_FILE_NAME
-            local_path = Path(__file__).resolve().parent / "source_data" / self.SOURCE_FILE_NAME
-            self._source_path = airflow_path if airflow_path.exists() else local_path
+        self._source_path = Path(source_path)
+        self._schema = schema
 
     def process(
         self,
@@ -132,7 +97,7 @@ class BronzeIngestor(BasepolarssProcessor):
     # ── private helpers ────────────────────────────────────────────────────
 
     def _read_source_csv(self) -> pl.LazyFrame:
-        """Đọc CSV với schema cố định — lazy để tiết kiệm bộ nhớ."""
+        """Đọc CSV với schema được cung cấp — lazy để tiết kiệm bộ nhớ."""
         self.logger.debug(f"[BronzeIngestor] scan_csv: {self._source_path}")
         if not self._source_path.exists():
             raise FileNotFoundError(
@@ -141,10 +106,10 @@ class BronzeIngestor(BasepolarssProcessor):
             )
         return pl.scan_csv(
             source=str(self._source_path),
-            schema=_CSV_SCHEMA,
+            schema=self._schema,
             null_values=["", "NULL", "null", "NA"],
             try_parse_dates=False,   # giữ nguyên TEXT tại bronze
-            infer_schema=False,
+            infer_schema_length=0, # Không infer schema, dùng schema cung cấp
         )
 
     def _build_s3_path(self, prefix: str, batch_id: str) -> str:
@@ -162,6 +127,7 @@ class BronzeIngestor(BasepolarssProcessor):
 def build_bronze_ingestor(
     env: Optional[EnvConfig] = None,
     source_path: Optional[str] = None,
+    schema: Optional[Dict[str, pl.DataType]] = None,
 ) -> BronzeIngestor:
     """
     Khởi tạo BronzeIngestor với PolarsEngine + Logger từ .env.
@@ -171,6 +137,7 @@ def build_bronze_ingestor(
     Args:
         env:         EnvConfig instance. Nếu None thì tự tạo mới.
         source_path: Override đường dẫn CSV nếu cần.
+        schema:      Schema của file CSV.
 
     Returns:
         BronzeIngestor đã sẵn sàng để gọi .process()
@@ -184,6 +151,11 @@ def build_bronze_ingestor(
     logger = logger_manager.get_logger("logger.ingestion_log.bronze")
     logger.info(f"[build_bronze_ingestor] MinIO endpoint={minio.endpoint_url} bucket={minio.bucket_bronze}")
 
+    if not source_path:
+        raise ValueError("[build_bronze_ingestor] `source_path` là tham số bắt buộc.")
+    if not schema:
+        raise ValueError("[build_bronze_ingestor] `schema` là tham số bắt buộc.")
+
     # 3. Khởi tạo PolarsEngine với S3 storage_options từ MinIO config
     polars_cfg = PolarsConfig(
         enable_streaming=True,
@@ -196,4 +168,5 @@ def build_bronze_ingestor(
         engine=engine,
         bronze_bucket=minio.bucket_bronze,
         source_path=source_path,
+        schema=schema,
     )
