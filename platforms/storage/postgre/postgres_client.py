@@ -47,11 +47,6 @@ class PostgresClient:
         client.run("INSERT INTO ...", params)
     """
 
-    _MIN_CONN = 1
-    _MAX_CONN = 5
-    _RETRY_ATTEMPTS = 3
-    _RETRY_DELAY_S  = 10
-
     def __init__(self, config: PostgresConfig) -> None:
         self._config = config
         self._pool: Optional[ThreadedConnectionPool] = None
@@ -60,11 +55,11 @@ class PostgresClient:
     # ── Connection pool ────────────────────────────────────────────────────
 
     def _connect(self) -> None:
-        for attempt in range(1, self._RETRY_ATTEMPTS + 1):
+        for attempt in range(1, self._config.retry_attempts + 1):
             try:
                 self._pool = ThreadedConnectionPool(
-                    minconn=self._MIN_CONN,
-                    maxconn=self._MAX_CONN,
+                    minconn=self._config.min_conn,
+                    maxconn=self._config.max_conn,
                     dsn=self._config.dsn,
                 )
                 _LOG.info(
@@ -74,12 +69,12 @@ class PostgresClient:
                 return
             except psycopg2.OperationalError as exc:
                 _LOG.warning(
-                    f"[PostgresClient] Connection attempt {attempt}/{self._RETRY_ATTEMPTS} failed: {exc}"
+                    f"[PostgresClient] Connection attempt {attempt}/{self._config.retry_attempts} failed: {exc}"
                 )
-                if attempt < self._RETRY_ATTEMPTS:
-                    time.sleep(self._RETRY_DELAY_S)
+                if attempt < self._config.retry_attempts:
+                    time.sleep(self._config.retry_delay_s)
         raise ConnectionError(
-            f"[PostgresClient] Không thể kết nối PostgreSQL sau {self._RETRY_ATTEMPTS} lần thử."
+            f"[PostgresClient] Không thể kết nối PostgreSQL sau {self._config.retry_attempts} lần thử."
         )
 
     def close(self) -> None:

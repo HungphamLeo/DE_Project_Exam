@@ -36,6 +36,10 @@ class PostgresConfig:
     db:       str
     user:     str
     password: str
+    min_conn: int
+    max_conn: int
+    retry_attempts: int
+    retry_delay_s: int
 
     @property
     def conn_string(self) -> str:
@@ -164,6 +168,10 @@ class EnvConfig:
                 db=self._require("POSTGRES_DB"),
                 user=self._require("POSTGRES_USER"),
                 password=self._require("POSTGRES_PASSWORD"),
+                min_conn=int(os.getenv("POSTGRES_POOL_MIN_CONN", "1")),
+                max_conn=int(os.getenv("POSTGRES_POOL_MAX_CONN", "5")),
+                retry_attempts=int(os.getenv("POSTGRES_RETRY_ATTEMPTS", "3")),
+                retry_delay_s=int(os.getenv("POSTGRES_RETRY_DELAY_S", "5")),
             )
         return self._postgres
 

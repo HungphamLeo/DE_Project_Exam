@@ -97,6 +97,7 @@ class PolarsEngine:
         endpoint = storage_options.get("endpoint_url", "")
         key      = storage_options.get("aws_access_key_id", "")
         secret   = storage_options.get("aws_secret_access_key", "")
+        region_name = storage_options.get("region_name", "us-east-1")
 
         fs = s3fs.S3FileSystem(
             key=key,
@@ -105,7 +106,7 @@ class PolarsEngine:
             # dùng client_kwargs để chắc chắn boto3 nhận đúng
             client_kwargs={
                 "endpoint_url": endpoint,
-                "region_name": "us-east-1",
+                "region_name": region_name,
             },
             config_kwargs={
                 "signature_version": "s3v4",

@@ -52,6 +52,7 @@ _SCHEMA_SQL = (
     / "de_assessment_schema.sql"
 )
 
+
 # ── Schema CSV gốc (raw, giữ nguyên kiểu TEXT cho event_timestamp) ─────────
 _CSV_SCHEMA = {
     "event_id":         pl.Utf8,
